@@ -1,0 +1,136 @@
+import sqlite3
+import pandas as pd
+import numpy as np
+
+conn = sqlite3.connect('./Midterm.db')
+curs = conn.cursor()
+curs.execute("PRAGMA foreign_keys=ON")
+
+def getAll(sql, *args):
+    temp = curs.execute(sql, (args)).fetchall()
+    cols = [desc[0] for desc in curs.description]
+    result = pd.DataFrame(temp, columns=cols)
+    return result
+    
+#0) How many counties are represented in this data?
+def GetCountyCount(ByState = False):
+    if ByState:
+        # Return the results grouped by state
+        state = getAll("""SELECT count(County), State FROM tId
+                        GROUP BY tId.State;""")
+         
+    else:
+        # Don't group by state, just return the total number of counties
+        state = getAll("SELECT count(County) FROM tId;")
+    return state
+
+GetCountyCount()
+GetCountyCount(True)
+
+#1) Given a county and state, return the number of housing units, sorted by year
+def GetHousingByCounty(county, state):
+    housing = getAll("""SELECT Housing_Unit, tHousing.Year
+                        FROM tHousing
+                            JOIN tId ON tHousing.County_Id = tId.County_Id
+                        WHERE (tId.County = ?) AND (tId.State = ?)
+                        ORDER BY tHousing.Year;""", county, state)
+    return housing
+    
+GetHousingByCounty("James City County", "Virginia")
+
+#2) Given a county and state, return the number of housing units as well as the unemployment rate, sorted by year
+def GetHousingAndUnemployment(county, state):
+    housing = getAll("""SELECT Housing_Unit, tEmployment.Unemployment, tHousing.Year
+                        FROM tId
+                            JOIN tHousing ON tId.County_Id = tHousing.County_Id
+                            JOIN tEmployment ON tHousing.County_Id = tEmployment.County_Id AND tHousing.Year = tEmployment.Year
+                        WHERE tId.County = ? AND tId.State = ?
+                        ORDER BY tHousing.Year;""",county,state)
+    return housing
+    
+GetHousingAndUnemployment("Pasco County", "Florida")
+
+#3) Given a state, what is the total population, sorted by year? 
+#     (hint: This is on the Employment table)
+def GetTotalPopByState(state):
+    population = getAll("""SELECT sum(Population), tEmployment.Year
+                            FROM tId
+                                JOIN tEmployment ON tId.County_Id = tEmployment.County_Id    
+                            WHERE tId.State = ? 
+                            GROUP BY tEmployment.Year
+                            ORDER BY tEmployment.Year;""",state)
+    return population
+    
+GetTotalPopByState("Alaska")
+ 
+ #4) Given a state, what is the ratio of (population / housing unit), grouped and sorted by year?
+def GetHousingPopulationRatio(state):
+    populationratio = getAll("""SELECT sum(Population), sum(Housing_Unit), ((1.0*sum(Population))/(1.0*sum(Housing_Unit))), tEmployment.Year
+                                FROM tId
+                                    JOIN tHousing ON tId.County_Id = tHousing.County_Id
+                                    JOIN tEmployment ON tHousing.County_Id = tEmployment.County_Id AND tHousing.Year = tEmployment.Year
+                                WHERE State = ?
+                                GROUP BY tEmployment.Year
+                                ORDER BY tEmployment.Year;""",state)
+    return populationratio
+    
+GetHousingPopulationRatio("Arizona")
+ 
+#5) In 2017, what were the 10 highest and 10 lowest counties in terms of median income?
+def GetHighLowMedianIncome(year, n_high, n_low):
+    MedianHigh = getAll("""SELECT tId.County_Id,tId.County, Median_Income
+                        FROM tId
+                            JOIN tIncome ON tId.County_Id = tIncome.County_Id
+                        WHERE tIncome.Year = ?
+                        ORDER BY Median_Income ASC
+                        LIMIT ?;""",year,n_high)
+    MedianLow = getAll("""SELECT tId.County_Id,tId.County,Median_Income
+                        FROM tId
+                            JOIN tIncome ON tId.County_Id = tIncome.County_Id 
+                        WHERE tIncome.Year = ?
+                        ORDER BY Median_Income DESC
+                        LIMIT ?;""",year,n_low)
+    Median = pd.concat([MedianHigh,MedianLow],ignore_index=True)
+    return Median
+  
+GetHighLowMedianIncome(2017,10,10)
+
+#6) In 2017, which states had the highest and lowest population/housing ratio, 
+#   and what was their median income and unemployment rate?
+def GetExtremeHousingRatios(year, n_high, n_low):
+    #population/housing per state
+    pop_house = getAll("""SELECT ROUND(SUM((1.0*Population))/SUM(Housing_Unit),1) AS 'Population/Housing_Unit', State
+            FROM tId
+                JOIN tHousing ON tId.County_Id = tHousing.County_Id
+                JOIN tEmployment ON tHousing.County_Id = tEmployment.County_Id AND tHousing.Year = tEmployment.Year
+            WHERE tEmployment.Year = ?
+            GROUP BY State
+            ORDER BY State;""",year)
+    #median income per state
+    median_inc = getAll("""SELECT State, ROUND((SUM((Population*Median_Income))/SUM(Population)),1) AS MedianIncome_State
+            FROM tIncome
+                JOIN tEmployment ON tIncome.County_Id = tEmployment.County_Id AND tIncome.Year = tEmployment.Year
+                JOIN tId ON tEmployment.County_Id = tId.County_Id 
+            WHERE tEmployment.Year = ?
+            GROUP BY State
+            ORDER BY State;""",year)
+    #unemployment for state
+    unemp = getAll("""SELECT State, ROUND((SUM((Population*Unemployment)/100)/SUM(Population))*100,1) AS UnemploymentRate_State
+            FROM tEmployment
+                JOIN tId ON tEmployment.County_Id = tId.County_Id 
+            WHERE Year = ?
+            GROUP BY State
+            ORDER BY State;""",year)
+    #combining all into a new dataframe
+    new = pd.DataFrame()
+    new['State'] = pop_house['State']
+    new['Population/Housing_Unit'] = pop_house['Population/Housing_Unit']
+    new['Median_Income'] = median_inc['MedianIncome_State']
+    new['Unemployment'] = unemp['UnemploymentRate_State']
+    sort = new.sort_values('Population/Housing_Unit',ascending=False)
+    #selecting just the highest and lowest values as per parameter
+    temp1 = sort.head(n_high)
+    temp2 = sort.tail(n_low)
+    return pd.concat([temp1,temp2],ignore_index=True)
+    
+ GetExtremeHousingRatios(2015,5,5)
