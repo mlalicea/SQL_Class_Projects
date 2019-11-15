@@ -1,0 +1,60 @@
+import sqlite3
+import pandas as pd
+import numpy as np
+
+# Create a connection to the database. File will be created if it doesn't already exist
+conn = sqlite3.connect('./Midterm.db')
+n
+
+# Create a cursor object.  This is how we send commands to the database.
+curs = conn.cursor()
+
+#Not editing data
+curs.execute("PRAGMA foreign_keys = OFF;")
+
+# 1) Id 
+curs.execute("DROP TABLE IF EXISTS tId;")
+curs.execute("""CREATE TABLE tId(
+                County_Id INTEGER NOT NULL PRIMARY KEY,
+                County TEXT NOT NULL,
+                State TEXT NOT NULL
+                );""")
+conn.commit()
+
+# 2) Housing
+curs.execute("DROP TABLE IF EXISTS tHousing;")
+curs.execute("""CREATE TABLE tHousing(
+                County_Id INTEGER NOT NULL,
+                Year INTEGER NOT NULL,
+                Housing_Unit INTEGER NOT NULL,
+                PRIMARY KEY(County_Id, Year),
+                FOREIGN KEY(County_Id) REFERENCES tId(County_Id)
+                );""")
+                
+# 3) Income
+curs.execute("DROP TABLE IF EXISTS tIncome;")
+curs.execute("""CREATE TABLE tIncome(
+                County_Id INTEGER NOT NULL,
+                Households INTEGER NOT NULL,
+                Median_Income TEXT NOT NULL,
+                Mean_Income INTEGER NOT NULL,
+                Year INTEGER NOT NULL,
+                PRIMARY KEY(County_Id, Year),
+                FOREIGN KEY(County_Id) REFERENCES tId(County_Id)
+                );""")
+                
+# 4) Employment
+curs.execute("DROP TABLE IF EXISTS tEmployment;")
+curs.execute("""CREATE TABLE tEmployment(
+                County_Id TEXT NOT NULL,
+                Population TEXT NOT NULL,
+                Labor_Force_Participation TEXT NOT NULL,
+                Employment_Population_Ratio TEXT NOT NULL,
+                Unemployment TEXT NOT NULL,
+                Year INTEGER NOT NULL,
+                PRIMARY KEY(County_Id, Year),
+                FOREIGN KEY(County_Id) REFERENCES tId(County_Id)
+                );""")
+conn.commit()
+
+conn.close()
