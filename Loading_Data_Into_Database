@@ -1,0 +1,41 @@
+import sqlite3
+import pandas as pd
+import numpy as np
+
+# Create a connection to the database. File will be created if it doesn't already exist
+conn = sqlite3.connect('./Midterm.db')
+
+# Create a cursor object.  This is how we send commands to the database.
+curs = conn.cursor()
+
+#Am not editing data
+curs.execute("PRAGMA foreign_keys = OFF;")
+
+# Load our data
+Id = pd.read_csv('./Id.csv')
+housing = pd.read_csv('./New_Housing.csv')
+income = pd.read_csv('./New_Income.csv')
+employment = pd.read_csv('./New_Employment.csv')
+
+# 1) Id
+for x in Id.values:
+    curs.execute("""INSERT INTO tId VALUES(
+                    ?,?,?);""", (int(x[0]),x[1],x[2])) 
+                   
+# 2) Housing
+for x in housing.values:
+    curs.execute("""INSERT INTO tHousing VALUES(
+                    ?,?,?);""", (int(x[0]),int(x[1]),int(x[2]) ))
+                    
+# 3) Income
+for x in income.values:
+    curs.execute("""INSERT INTO tIncome VALUES(
+                    ?,?,?,?,?);""", (int(x[0]),int(x[1]),x[2],int(x[3]),int(x[4]) ))               
+                    
+# 5) Employment
+for x in employment.values:
+    curs.execute("""INSERT INTO tEmployment VALUES(
+                    ?,?,?,?,?,?);""", (int(x[0]),x[1],x[2],x[3],x[4],int(x[5]) ))
+conn.commit()
+
+conn.close()
